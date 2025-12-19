@@ -46,6 +46,12 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="BUS\CategoryBUS.cs" />
+    <Compile Include="BUS\DataProvider.cs" />
+    <Compile Include="BUS\InvoiceBUS.cs" />
+    <Compile Include="BUS\OrderBUS.cs" />
+    <Compile Include="BUS\ProductBUS.cs" />
+    <Compile Include="BUS\TableBUS.cs" />
     <Compile Include="DTO\CoffeeDish.cs" />
     <Compile Include="DTO\CoffeeInvoice.cs" />
     <Compile Include="DTO\OrderItem.cs" />

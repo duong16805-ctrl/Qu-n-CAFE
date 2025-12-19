@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Quán_CAFE.BUS;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
@@ -13,20 +14,27 @@ namespace Quán_CAFE
         public StatisticControl()
         {
             this.Padding = new Padding(20);
-            long day = Form1.InvoiceHistory.Where(i => i.Date.Date == DateTime.Today).Sum(i => i.Total);
-            long month = Form1.InvoiceHistory.Where(i => i.Date.Month == DateTime.Today.Month).Sum(i => i.Total);
-
-            FlowLayoutPanel f = new FlowLayoutPanel { Dock = DockStyle.Fill };
-            f.Controls.Add(Card("DOANH THU NGÀY", day.ToString("N0") + "đ", Form1.NavyPrimary, Color.White));
-            f.Controls.Add(Card("DOANH THU THÁNG", month.ToString("N0") + "đ", Form1.PinkSecondary, Form1.NavyPrimary));
-
+            FlowLayoutPanel f = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true };
+            try
+            {
+                long today = InvoiceBUS.GetRevenueByDate(DateTime.Today);
+                long month = InvoiceBUS.GetRevenueByMonth(DateTime.Today.Month, DateTime.Today.Year);
+                f.Controls.Add(Card("DOANH THU HÔM NAY", today.ToString("N0") + "đ", Form1.NavyPrimary, Color.White));
+                f.Controls.Add(Card("DOANH THU THÁNG NÀY", month.ToString("N0") + "đ", Form1.PinkSecondary, Form1.NavyPrimary));
+            }
+            catch (Exception ex)
+            {
+                f.Controls.Add(new Label { Text = "Lỗi: " + ex.Message, ForeColor = Color.Red, AutoSize = true });
+            }
             this.Controls.Add(f);
         }
-        private Panel Card(string t, string v, Color b, Color f)
+
+        private Panel Card(string title, string value, Color backColor, Color foreColor)
         {
-            Panel p = new Panel { Size = new Size(350, 160), BackColor = b, Margin = new Padding(15) };
-            p.Controls.Add(new Label { Text = v, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter, ForeColor = f, Font = new Font("Segoe UI", 22, FontStyle.Bold) });
-            p.Controls.Add(new Label { Text = t, Dock = DockStyle.Top, Height = 50, TextAlign = ContentAlignment.BottomCenter, ForeColor = f, Font = new Font("Segoe UI", 10, FontStyle.Bold) });
+            Panel p = new Panel { Size = new Size(380, 160), BackColor = backColor, Margin = new Padding(15) };
+            Label lblValue = new Label { Text = value, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter, ForeColor = foreColor, Font = new Font("Segoe UI", 24, FontStyle.Bold) };
+            Label lblTitle = new Label { Text = title, Dock = DockStyle.Top, Height = 50, TextAlign = ContentAlignment.BottomCenter, ForeColor = foreColor, Font = new Font("Segoe UI", 11, FontStyle.Bold) };
+            p.Controls.Add(lblValue); p.Controls.Add(lblTitle);
             return p;
         }
     }

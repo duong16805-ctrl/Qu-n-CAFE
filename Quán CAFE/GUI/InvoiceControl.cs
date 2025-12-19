@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Quán_CAFE.BUS;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
@@ -13,9 +14,8 @@ namespace Quán_CAFE
         public InvoiceControl()
         {
             this.Padding = new Padding(20);
-            DataGridView dgv = new DataGridView { Dock = DockStyle.Fill, BackgroundColor = Color.White, AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill, RowHeadersVisible = false, AllowUserToAddRows = false };
-            dgv.Columns.Add("No", "Số HD"); dgv.Columns.Add("D", "Ngày giờ"); dgv.Columns.Add("T", "Bàn"); dgv.Columns.Add("S", "Tiền");
-            foreach (var i in Form1.InvoiceHistory) dgv.Rows.Add(i.InvoiceNo, i.Date.ToString("HH:mm dd/MM"), i.TableName, i.Total.ToString("N0") + "đ");
+            DataGridView dgv = new DataGridView { Dock = DockStyle.Fill, BackgroundColor = Color.White, AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill, RowHeadersVisible = false, AllowUserToAddRows = false, ReadOnly = true };
+            try { dgv.DataSource = InvoiceBUS.GetInvoiceHistory(); } catch { }
             this.Controls.Add(dgv);
         }
     }

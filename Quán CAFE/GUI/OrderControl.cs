@@ -1,6 +1,8 @@
-﻿using Quán_CAFE.DTO;
+﻿using Quán_CAFE.BUS;
+using Quán_CAFE.DTO;
 using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Drawing;
 using System.Linq;
 using System.Text;
@@ -12,195 +14,245 @@ namespace Quán_CAFE
     public class OrderControl : UserControl
     {
         private DataGridView dgvBill;
-        private Label lblTotal, lblStatus;
-        private string _tName;
+        private Label lblTotal;
+        private int _tableID;
+        private string _tableName;
         private Form1 _main;
-        private long _sum = 0;
 
-        public OrderControl(Form1 main, string tName)
+        public OrderControl(Form1 main, int tableID, string tableName)
         {
-            _main = main; _tName = tName;
-            main.SetTitle("CHI TIẾT: " + tName.ToUpper());
+            _main = main;
+            _tableID = tableID;
+            _tableName = tableName;
+            main.SetTitle("CHI TIẾT: " + tableName.ToUpper());
 
-            bool isPaid = Form1.PaidTables.Contains(tName);
-
-            // Left: Menu
-            FlowLayoutPanel flowMenu = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true, Padding = new Padding(10) };
-            flowMenu.Enabled = !isPaid;
-
-            foreach (var item in Form1.GlobalMenu)
+            // --- GIAO DIỆN CHÍNH ---
+            SplitContainer split = new SplitContainer
             {
-                Button btn = new Button
-                {
-                    Text = item.Name + "\n" + item.Price.ToString("N0") + "đ",
-                    Size = new Size(135, 95),
-                    Margin = new Padding(10),
-                    BackColor = Color.White,
-                    FlatStyle = FlatStyle.Flat,
-                    Font = new Font("Segoe UI", 9, FontStyle.Bold),
-                    ForeColor = Form1.NavyPrimary
-                };
-                btn.FlatAppearance.BorderColor = Form1.PinkSecondary;
-                btn.Click += (s, e) => AddItem(item.Name, item.Price);
-                flowMenu.Controls.Add(btn);
-            }
-
-            // Right: Bill
-            Panel pnlBill = new Panel { Dock = DockStyle.Right, Width = 450, BackColor = Color.White, Padding = new Padding(10) };
-            pnlBill.BorderStyle = BorderStyle.FixedSingle;
-
-            lblStatus = new Label
-            {
-                Text = isPaid ? "TRẠNG THÁI: ĐÃ THANH TOÁN" : "TRẠNG THÁI: CHƯA THANH TOÁN",
-                Dock = DockStyle.Top,
-                Height = 40,
-                ForeColor = isPaid ? Color.Green : Color.Red,
-                Font = new Font("Segoe UI", 10, FontStyle.Bold)
+                Dock = DockStyle.Fill,
+                SplitterDistance = 750,
+                BorderStyle = BorderStyle.None
             };
 
+            // 1. Bên trái: Menu món ăn
+            FlowLayoutPanel pnlMenu = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                AutoScroll = true,
+                Padding = new Padding(15),
+                BackColor = Color.White
+            };
+            LoadMenu(pnlMenu);
+
+            // 2. Bên phải: Hóa đơn tạm tính
+            Panel pnlBill = new Panel
+            {
+                Dock = DockStyle.Fill,
+                Padding = new Padding(15),
+                BackColor = Color.White
+            };
+
+            // Bảng hiển thị món đã chọn
             dgvBill = new DataGridView
             {
                 Dock = DockStyle.Fill,
-                BackgroundColor = Color.White,
+                BackgroundColor = Color.FromArgb(245, 245, 245),
+                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
                 RowHeadersVisible = false,
                 AllowUserToAddRows = false,
+                ReadOnly = true,
                 SelectionMode = DataGridViewSelectionMode.FullRowSelect,
-                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill
+                BorderStyle = BorderStyle.None
             };
-            dgvBill.Columns.Add("N", "Tên món"); dgvBill.Columns.Add("Q", "SL"); dgvBill.Columns.Add("P", "Giá"); dgvBill.Columns.Add("S", "Tổng");
+            dgvBill.Columns.Add("ID", "Mã"); // Cần ID để xóa món
+            dgvBill.Columns.Add("Name", "Món");
+            dgvBill.Columns.Add("Qty", "SL");
+            dgvBill.Columns.Add("Price", "Giá");
+            dgvBill.Columns.Add("Sum", "T.Tiền");
+            dgvBill.Columns["ID"].Visible = false; // Ẩn cột ID sản phẩm
 
-            // QUAN TRỌNG: Tải lại các món cũ nếu bàn này đang có khách
-            if (Form1.CurrentOrders.ContainsKey(_tName))
+            // Panel điều khiển (Tổng tiền + Nút bấm)
+            Panel pnlAction = new Panel { Dock = DockStyle.Bottom, Height = 260 };
+
+            lblTotal = new Label
             {
-                foreach (var item in Form1.CurrentOrders[_tName])
-                {
-                    dgvBill.Rows.Add(item.Name, item.Qty, item.Price.ToString("N0"), (item.Qty * item.Price).ToString("N0"));
-                }
-            }
-
-            Panel pnlBot = new Panel { Dock = DockStyle.Bottom, Height = 250 };
-            lblTotal = new Label { Text = "TỔNG: 0đ", Dock = DockStyle.Top, Height = 50, Font = new Font("Segoe UI", 16, FontStyle.Bold), TextAlign = ContentAlignment.MiddleRight, ForeColor = Form1.NavyPrimary };
-
-            Button btnDel = new Button { Text = "XÓA MÓN ĐANG CHỌN", Dock = DockStyle.Top, Height = 40, BackColor = Color.White, FlatStyle = FlatStyle.Flat, Enabled = !isPaid };
-            btnDel.Click += (s, e) => {
-                if (dgvBill.SelectedRows.Count > 0)
-                {
-                    dgvBill.Rows.RemoveAt(dgvBill.SelectedRows[0].Index);
-                    SyncToGlobal(); // Cập nhật bộ nhớ sau khi xóa
-                    UpdateTotal();
-                }
+                Text = "TỔNG: 0đ",
+                Dock = DockStyle.Top,
+                Height = 60,
+                Font = new Font("Segoe UI", 18, FontStyle.Bold),
+                TextAlign = ContentAlignment.MiddleRight,
+                ForeColor = Form1.NavyPrimary,
+                Padding = new Padding(0, 0, 10, 0)
             };
 
+            // Nút Xóa món đang chọn
+            Button btnRemove = new Button
+            {
+                Text = "XÓA MÓN ĐÃ CHỌN",
+                Dock = DockStyle.Top,
+                Height = 45,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                ForeColor = Color.Red,
+                Margin = new Padding(0, 5, 0, 5)
+            };
+            btnRemove.FlatAppearance.BorderColor = Color.Red;
+            btnRemove.Click += (s, e) => RemoveSelectedItem();
+
+            // Nút Thanh toán
             Button btnPay = new Button
             {
                 Text = "XÁC NHẬN THANH TOÁN",
-                Dock = DockStyle.Top,
-                Height = 60,
-                BackColor = isPaid ? Color.Gray : Form1.NavyPrimary,
+                Dock = DockStyle.Bottom,
+                Height = 65,
+                BackColor = Form1.NavyPrimary,
                 ForeColor = Color.White,
                 FlatStyle = FlatStyle.Flat,
                 Font = new Font("Segoe UI", 12, FontStyle.Bold),
-                Enabled = !isPaid
+                Cursor = Cursors.Hand
             };
-            btnPay.Click += (s, e) =>
+            btnPay.Click += (s, e) => HandlePayment();
+
+            // Nút Dọn bàn / Quay lại
+            Panel pnlBottomGroup = new Panel { Dock = DockStyle.Bottom, Height = 55 };
+
+            Button btnBack = new Button
             {
-                if (_sum == 0) return;
-
-                // Lấy chi tiết món để lưu vào hóa đơn lịch sử
-                var details = Form1.CurrentOrders.ContainsKey(_tName) ? Form1.CurrentOrders[_tName] : new List<OrderItem>();
-
-                Form1.InvoiceHistory.Add(new CoffeeInvoice
-                {
-                    InvoiceNo = "HD" + (Form1.InvoiceHistory.Count + 1).ToString("D3"),
-                    Date = DateTime.Now,
-                    TableName = _tName,
-                    Total = _sum,
-                    Details = details
-                });
-
-                Form1.PaidTables.Add(_tName);
-                Form1.SaveData(); // Lưu file ngay
-                MessageBox.Show("Thanh toán thành công!");
-                _main.SwitchView(new DashboardControl(_main));
+                Text = "QUAY LẠI",
+                Width = 150,
+                Dock = DockStyle.Left,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 9, FontStyle.Bold)
             };
+            btnBack.Click += (s, e) => _main.SwitchView(new DashboardControl(_main));
 
             Button btnClear = new Button
             {
-                Text = "XÁC NHẬN DỌN BÀN (LÀM TRỐNG)",
-                Dock = DockStyle.Top,
-                Height = 60,
-                BackColor = isPaid ? Form1.PinkSecondary : Color.LightGray,
+                Text = "DỌN BÀN (LÀM TRỐNG)",
+                Dock = DockStyle.Fill,
                 FlatStyle = FlatStyle.Flat,
-                Font = new Font("Segoe UI", 11, FontStyle.Bold)
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                BackColor = Color.White
             };
             btnClear.Click += (s, e) => {
-                Form1.OccupiedTables.Remove(_tName);
-                Form1.PaidTables.Remove(_tName);
-                Form1.CurrentOrders.Remove(_tName); // Xóa món ăn của bàn này
-                Form1.SaveData();
-                _main.SwitchView(new DashboardControl(_main));
+                if (MessageBox.Show("Xác nhận làm trống bàn này?", "Thông báo", MessageBoxButtons.YesNo) == DialogResult.Yes)
+                {
+                    TableBUS.UpdateTableStatus(_tableID, "Trống");
+                    _main.SwitchView(new DashboardControl(_main));
+                }
             };
 
-            pnlBot.Controls.Add(btnClear);
-            pnlBot.Controls.Add(btnPay);
-            pnlBot.Controls.Add(btnDel);
-            pnlBot.Controls.Add(lblTotal);
+            pnlBottomGroup.Controls.Add(btnClear);
+            pnlBottomGroup.Controls.Add(btnBack);
+
+            pnlAction.Controls.Add(btnRemove);
+            pnlAction.Controls.Add(lblTotal);
+            pnlAction.Controls.Add(btnPay);
+            pnlAction.Controls.Add(new Label { Dock = DockStyle.Bottom, Height = 10 }); // Khoảng cách
+            pnlAction.Controls.Add(pnlBottomGroup);
 
             pnlBill.Controls.Add(dgvBill);
-            pnlBill.Controls.Add(lblStatus);
-            pnlBill.Controls.Add(pnlBot);
+            pnlBill.Controls.Add(pnlAction);
 
-            this.Controls.Add(flowMenu);
-            this.Controls.Add(pnlBill);
-            UpdateTotal();
+            split.Panel1.Controls.Add(pnlMenu);
+            split.Panel2.Controls.Add(pnlBill);
+            this.Controls.Add(split);
+
+            RefreshBill();
         }
 
-        private void AddItem(string name, int price)
+        private void LoadMenu(FlowLayoutPanel pnl)
         {
-            Form1.OccupiedTables.Add(_tName);
-            bool exists = false;
-            foreach (DataGridViewRow row in dgvBill.Rows)
+            try
             {
-                if (row.Cells[0].Value.ToString() == name)
+                DataTable dt = ProductBUS.GetAllProducts();
+                foreach (DataRow r in dt.Rows)
                 {
-                    int qty = int.Parse(row.Cells[1].Value.ToString()) + 1;
-                    row.Cells[1].Value = qty;
-                    row.Cells[3].Value = (qty * price).ToString("N0");
-                    exists = true; break;
+                    string proID = r["ProductID"].ToString();
+                    string proName = r["ProductName"].ToString();
+                    int proPrice = Convert.ToInt32(r["Price"]);
+
+                    Button b = new Button
+                    {
+                        Text = proName + "\n" + proPrice.ToString("N0") + "đ",
+                        Size = new Size(135, 100),
+                        Margin = new Padding(8),
+                        BackColor = Color.White,
+                        FlatStyle = FlatStyle.Flat,
+                        Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                        ForeColor = Form1.NavyPrimary,
+                        Cursor = Cursors.Hand
+                    };
+                    b.FlatAppearance.BorderColor = Form1.PinkSecondary;
+                    b.FlatAppearance.BorderSize = 2;
+
+                    b.Click += (s, e) => {
+                        OrderBUS.AddProductToOrder(_tableID, proID, 1, proPrice);
+                        RefreshBill();
+                    };
+                    pnl.Controls.Add(b);
                 }
             }
-            if (!exists) dgvBill.Rows.Add(name, 1, price.ToString("N0"), price.ToString("N0"));
-
-            SyncToGlobal(); // Cập nhật món vào bộ nhớ và lưu file
-            UpdateTotal();
+            catch (Exception ex)
+            {
+                MessageBox.Show("Lỗi tải menu: " + ex.Message);
+            }
         }
 
-        // MỚI: Đồng bộ dữ liệu từ Grid vào Dictionary toàn cục
-        private void SyncToGlobal()
+        private void RefreshBill()
         {
-            List<OrderItem> items = new List<OrderItem>();
-            foreach (DataGridViewRow r in dgvBill.Rows)
+            dgvBill.Rows.Clear();
+            int invID = InvoiceBUS.GetUnpaidInvoiceIDByTable(_tableID);
+            if (invID == -1)
             {
-                items.Add(new OrderItem
-                {
-                    Name = r.Cells[0].Value.ToString(),
-                    Qty = int.Parse(r.Cells[1].Value.ToString()),
-                    Price = int.Parse(r.Cells[2].Value.ToString().Replace(",", ""))
-                });
+                lblTotal.Text = "TỔNG: 0đ";
+                return;
             }
-            Form1.CurrentOrders[_tName] = items;
-            Form1.SaveData(); // Lưu xuống ổ cứng
+
+            DataTable details = InvoiceBUS.GetInvoiceDetails(invID);
+            long total = 0;
+            foreach (DataRow r in details.Rows)
+            {
+                // Kiểm tra ProductID nếu có trong kết quả truy vấn để gán vào cột ID ẩn
+                string name = r["ProductName"].ToString();
+                int qty = Convert.ToInt32(r["Quantity"]);
+                int price = Convert.ToInt32(r["PriceAtTime"]);
+                long sum = Convert.ToInt64(r["Total"]);
+
+                dgvBill.Rows.Add("", name, qty, price.ToString("N0"), sum.ToString("N0"));
+                total += sum;
+            }
+            lblTotal.Text = "TỔNG: " + total.ToString("N0") + "đ";
         }
 
-        private void UpdateTotal()
+        private void HandlePayment()
         {
-            _sum = 0;
-            foreach (DataGridViewRow r in dgvBill.Rows)
+            int invID = InvoiceBUS.GetUnpaidInvoiceIDByTable(_tableID);
+            if (invID == -1)
             {
-                if (r.Cells[3].Value != null)
-                    _sum += long.Parse(r.Cells[3].Value.ToString().Replace(",", ""));
+                MessageBox.Show("Bàn chưa có món ăn nào để thanh toán!");
+                return;
             }
-            lblTotal.Text = "TỔNG: " + _sum.ToString("N0") + "đ";
+
+            if (MessageBox.Show("Xác nhận thanh toán hóa đơn này?", "Xác nhận", MessageBoxButtons.YesNo) == DialogResult.Yes)
+            {
+                InvoiceBUS.PayInvoice(invID);
+                MessageBox.Show("Thanh toán thành công!", "Thông báo");
+                _main.SwitchView(new DashboardControl(_main));
+            }
+        }
+
+        private void RemoveSelectedItem()
+        {
+            if (dgvBill.SelectedRows.Count == 0)
+            {
+                MessageBox.Show("Vui lòng chọn một món trong danh sách để xóa!");
+                return;
+            }
+
+            // Logic xóa món trong Database cần được bổ sung vào BUS và Procedure.
+            // Tạm thời hiển thị thông báo hướng dẫn.
+            MessageBox.Show("Chức năng xóa từng món đang được cập nhật trong Database!");
         }
     }
 }

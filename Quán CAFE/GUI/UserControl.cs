@@ -17,15 +17,34 @@ namespace Quán_CAFE
             {
                 string tName = "Bàn " + i;
                 bool isFull = Form1.OccupiedTables.Contains(tName);
+                bool isPaid = Form1.PaidTables.Contains(tName);
+
+                string statusText = "Trống";
+                Color bgColor = Color.White;
+                Color textColor = Form1.NavyPrimary;
+
+                if (isPaid)
+                {
+                    statusText = "Chờ dọn";
+                    bgColor = Form1.OrangeWait;
+                    textColor = Color.White;
+                }
+                else if (isFull)
+                {
+                    statusText = "Có khách";
+                    bgColor = Form1.PinkSecondary;
+                    textColor = Form1.NavyPrimary;
+                }
+
                 Button btn = new Button
                 {
-                    Text = tName + (isFull ? "\n(FULL)" : "\n(Trống)"),
+                    Text = tName + "\n(" + statusText + ")",
                     Size = new Size(130, 130),
                     Margin = new Padding(15),
-                    BackColor = isFull ? Form1.PinkSecondary : Color.White,
+                    BackColor = bgColor,
                     FlatStyle = FlatStyle.Flat,
                     Font = new Font("Segoe UI", 10, FontStyle.Bold),
-                    ForeColor = Form1.NavyPrimary
+                    ForeColor = textColor
                 };
                 btn.FlatAppearance.BorderColor = Form1.PinkSecondary;
                 btn.FlatAppearance.BorderSize = 2;

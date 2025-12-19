@@ -64,12 +64,13 @@ namespace Quán_CAFE
                 SelectionMode = DataGridViewSelectionMode.FullRowSelect,
                 BorderStyle = BorderStyle.None
             };
-            dgvBill.Columns.Add("ID", "Mã"); // Cần ID để xóa món
+            dgvBill.Columns.Add("ID", "Mã"); // Cột ẩn chứa ProductID
             dgvBill.Columns.Add("Name", "Món");
             dgvBill.Columns.Add("Qty", "SL");
             dgvBill.Columns.Add("Price", "Giá");
             dgvBill.Columns.Add("Sum", "T.Tiền");
             dgvBill.Columns["ID"].Visible = false; // Ẩn cột ID sản phẩm
+   
 
             // Panel điều khiển (Tổng tiền + Nút bấm)
             Panel pnlAction = new Panel { Dock = DockStyle.Bottom, Height = 260 };
@@ -135,7 +136,7 @@ namespace Quán_CAFE
                 BackColor = Color.White
             };
             btnClear.Click += (s, e) => {
-                if (MessageBox.Show("Xác nhận làm trống bàn này?", "Thông báo", MessageBoxButtons.YesNo) == DialogResult.Yes)
+                if (MessageBox.Show("Xác nhận làm trống bàn này? Thao tác này sẽ đặt trạng thái bàn về 'Trống'.", "Thông báo", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes)
                 {
                     TableBUS.UpdateTableStatus(_tableID, "Trống");
                     _main.SwitchView(new DashboardControl(_main));
@@ -213,13 +214,14 @@ namespace Quán_CAFE
             long total = 0;
             foreach (DataRow r in details.Rows)
             {
-                // Kiểm tra ProductID nếu có trong kết quả truy vấn để gán vào cột ID ẩn
+                // Lấy ProductID để hỗ trợ chức năng Xóa (Yêu cầu InvoiceBUS.GetInvoiceDetails trả về ProductID)
+                string id = details.Columns.Contains("ProductID") ? r["ProductID"].ToString() : "";
                 string name = r["ProductName"].ToString();
                 int qty = Convert.ToInt32(r["Quantity"]);
                 int price = Convert.ToInt32(r["PriceAtTime"]);
                 long sum = Convert.ToInt64(r["Total"]);
 
-                dgvBill.Rows.Add("", name, qty, price.ToString("N0"), sum.ToString("N0"));
+                dgvBill.Rows.Add(id, name, qty, price.ToString("N0"), sum.ToString("N0"));
                 total += sum;
             }
             lblTotal.Text = "TỔNG: " + total.ToString("N0") + "đ";
@@ -234,7 +236,7 @@ namespace Quán_CAFE
                 return;
             }
 
-            if (MessageBox.Show("Xác nhận thanh toán hóa đơn này?", "Xác nhận", MessageBoxButtons.YesNo) == DialogResult.Yes)
+            if (MessageBox.Show("Xác nhận thanh toán hóa đơn này?", "Xác nhận", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
             {
                 InvoiceBUS.PayInvoice(invID);
                 MessageBox.Show("Thanh toán thành công!", "Thông báo");
@@ -250,9 +252,38 @@ namespace Quán_CAFE
                 return;
             }
 
-            // Logic xóa món trong Database cần được bổ sung vào BUS và Procedure.
-            // Tạm thời hiển thị thông báo hướng dẫn.
-            MessageBox.Show("Chức năng xóa từng món đang được cập nhật trong Database!");
+            string productName = dgvBill.SelectedRows[0].Cells["Name"].Value.ToString();
+            string proID = dgvBill.SelectedRows[0].Cells["ID"].Value.ToString();
+
+            if (string.IsNullOrEmpty(proID))
+            {
+                MessageBox.Show("Lỗi: Không tìm thấy mã sản phẩm để xóa. Hãy kiểm tra lại câu truy vấn trong InvoiceBUS (phải SELECT ProductID)!");
+                return;
+            }
+
+            if (MessageBox.Show($"Bạn có chắc muốn xóa món '{productName}' khỏi hóa đơn?", "Xác nhận xóa", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes)
+            {
+                int invID = InvoiceBUS.GetUnpaidInvoiceIDByTable(_tableID);
+                if (invID != -1)
+                {
+                    try
+                    {
+                        // Thực hiện xóa trực tiếp qua DataProvider
+                        string query = "DELETE FROM InvoiceDetail WHERE InvoiceID = @inv AND ProductID = @pro";
+                        DataProvider.Instance.ExecuteNonQuery(query, new object[] { invID, proID });
+
+                        // Cập nhật lại tổng tiền của Invoice chính sau khi xóa chi tiết
+                        string updateQuery = "UPDATE Invoice SET TotalAmount = (SELECT ISNULL(SUM(Quantity * PriceAtTime), 0) FROM InvoiceDetail WHERE InvoiceID = @inv) WHERE InvoiceID = @inv";
+                        DataProvider.Instance.ExecuteNonQuery(updateQuery, new object[] { invID });
+
+                        RefreshBill();
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show("Lỗi khi xóa món: " + ex.Message);
+                    }
+                }
+            }
         }
     }
 }

@@ -34,7 +34,7 @@ namespace Quán_CAFE
 
         private void SetupLayout()
         {
-            this.Text = "GEMINI COFFEE MANAGER - SQL SERVER EDITION";
+            this.Text = "HỆ THỐNG QUÁN CAFE";
             this.Size = new Size(1300, 850);
             this.StartPosition = FormStartPosition.CenterScreen;
 
@@ -44,7 +44,7 @@ namespace Quán_CAFE
 
             Label lblLogo = new Label
             {
-                Text = "NAVY & PINK\nCOFFEE",
+                Text = "NAVY COFFEE",
                 ForeColor = PinkSecondary,
                 Height = 120,
                 Font = new Font("Segoe UI", 18, FontStyle.Bold),

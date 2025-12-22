@@ -16,11 +16,14 @@ namespace Quán_CAFE.BUS
         }
 
         public static DataTable GetInvoiceDetails(int invoiceID) =>
-            DataProvider.Instance.ExecuteQuery("SELECT p.ProductName, id.Quantity, id.PriceAtTime, (id.Quantity * id.PriceAtTime) as Total FROM InvoiceDetail id JOIN Product p ON id.ProductID = p.ProductID WHERE id.InvoiceID = @id", new object[] { invoiceID });
+            DataProvider.Instance.ExecuteQuery("SELECT id.ProductID, p.ProductName, id.Quantity, id.PriceAtTime, (id.Quantity * id.PriceAtTime) as Total FROM InvoiceDetail id JOIN Product p ON id.ProductID = p.ProductID WHERE id.InvoiceID = @id", new object[] { invoiceID });
 
         public static int CreateNewInvoice(int tableID)
         {
-            int id = Convert.ToInt32(DataProvider.Instance.ExecuteScalar("EXEC USP_InsertInvoice @tableID", new object[] { tableID }));
+            // Dùng SELECT SCOPE_IDENTITY() để lấy ID vừa tạo chính xác hơn
+            string query = "INSERT INTO Invoice (TableID, OrderDate, TotalAmount, IsPaid) VALUES ( @tableID , GETDATE(), 0, 0); SELECT SCOPE_IDENTITY();";
+            object result = DataProvider.Instance.ExecuteScalar(query, new object[] { tableID });
+            int id = Convert.ToInt32(result);
             TableBUS.UpdateTableStatus(tableID, "Có khách");
             return id;
         }
@@ -40,6 +43,38 @@ namespace Quán_CAFE.BUS
         {
             object res = DataProvider.Instance.ExecuteScalar("SELECT SUM(TotalAmount) FROM Invoice WHERE MONTH(OrderDate) = @m AND YEAR(OrderDate) = @y AND IsPaid = 1", new object[] { month, year });
             return (res == null || res == DBNull.Value) ? 0 : Convert.ToInt64(res);
+        }
+
+        // --- CÁC HÀM MỚI (BẮT BUỘC ĐỂ SỬA LỖI) ---
+
+        // 1. Lấy doanh thu theo khoảng thời gian (cho StatisticControl)
+        public static DataTable GetRevenueListByDateRange(DateTime fromDate, DateTime toDate)
+        {
+            return DataProvider.Instance.ExecuteQuery(
+                "SELECT OrderDate, TotalAmount FROM Invoice WHERE OrderDate >= @from AND OrderDate <= @to AND IsPaid = 1",
+                new object[] { fromDate, toDate });
+        }
+
+        // 2. Xử lý chuyển bàn (cho OrderControl)
+        public static bool SwitchTable(int idTableOld, int idTableNew)
+        {
+            try
+            {
+                int idInvoiceOld = GetUnpaidInvoiceIDByTable(idTableOld);
+
+                // Nếu bàn cũ không có hóa đơn thì không cần chuyển
+                if (idInvoiceOld == -1) return false;
+
+                // Cập nhật TableID cho hóa đơn
+                DataProvider.Instance.ExecuteNonQuery("UPDATE Invoice SET TableID = @new WHERE InvoiceID = @inv", new object[] { idTableNew, idInvoiceOld });
+
+                // Cập nhật trạng thái 2 bàn
+                TableBUS.UpdateTableStatus(idTableOld, "Trống");
+                TableBUS.UpdateTableStatus(idTableNew, "Có khách");
+
+                return true;
+            }
+            catch { return false; }
         }
     }
 }

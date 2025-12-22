@@ -47,7 +47,7 @@ namespace Quán_CAFE
 
             Label lblLogo = new Label
             {
-                Text = "NAVY COFFEE",
+                Text = "MIU COFFEE",
                 ForeColor = PinkSecondary,
                 Height = 120,
                 Font = new Font("Segoe UI", 18, FontStyle.Bold),

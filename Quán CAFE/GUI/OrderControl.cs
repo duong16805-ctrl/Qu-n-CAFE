@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Drawing;
+using System.Drawing.Printing;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -70,7 +71,7 @@ namespace Quán_CAFE
             dgvBill.Columns.Add("Price", "Giá");
             dgvBill.Columns.Add("Sum", "T.Tiền");
             dgvBill.Columns["ID"].Visible = false; // Ẩn cột ID sản phẩm
-   
+
 
             // Panel điều khiển (Tổng tiền + Nút bấm)
             Panel pnlAction = new Panel { Dock = DockStyle.Bottom, Height = 260 };

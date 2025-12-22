@@ -39,7 +39,7 @@ namespace Quán_CAFE
         {
             this.Text = "HỆ THỐNG QUÁN CAFE";
             this.Size = new Size(1300, 850);
-            this.StartPosition = FormStartPosition.CenterScreen;
+            this.WindowState = FormWindowState.Maximized; // Mở toàn màn hình
 
             // Sidebar
             pnlSidebar = new Panel { Dock = DockStyle.Left, Width = 240, BackColor = NavyPrimary };

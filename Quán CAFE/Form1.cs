@@ -16,16 +16,19 @@ namespace Quán_CAFE
     public partial class Form1 : Form
     {
         // Màu sắc chủ đạo (Giữ nguyên)
-        public static Color NavyPrimary = Color.FromArgb(20, 33, 61);
-        public static Color PinkSecondary = Color.FromArgb(255, 182, 193);
-        public static Color OrangeWait = Color.FromArgb(252, 163, 17);
-        public static Color BgLight = Color.FromArgb(248, 249, 250);
+        // Thay đổi trong Form1.cs
+        public static Color NavyPrimary = Color.FromArgb(137, 207, 240); // Xanh Baby (Baby Blue)
+        public static Color PinkSecondary = Color.FromArgb(245, 245, 220); // Trắng Be (Beige)
+        public static Color OrangeWait = Color.FromArgb(252, 163, 17); // Giữ nguyên màu chờ
+        public static Color BgLight = Color.FromArgb(255, 255, 245); // Màu nền be nhạt
 
         private Panel pnlSidebar, pnlHeader, pnlContent;
         private Label lblHeaderTitle;
+        private int _accountType; // 1: Admin, 0: User
 
-        public Form1()
+        public Form1(int accountType)
         {
+            _accountType = accountType;
             InitializeComponent();
             SetupLayout();
             // Mặc định hiển thị sơ đồ bàn khi mở app
@@ -87,6 +90,9 @@ namespace Quán_CAFE
             int top = 140;
             foreach (var nav in navItems)
             {
+                // PHÂN QUYỀN: Nếu là User (0), ẩn "Báo cáo" và "Quản lý món"
+                if (_accountType == 0 && (nav.Key == "Báo cáo" || nav.Key == "Quản lý món"))
+                    continue; 
                 Button btn = new Button
                 {
                     Text = "   " + nav.Key,
